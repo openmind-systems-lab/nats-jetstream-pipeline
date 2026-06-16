@@ -1,0 +1,181 @@
+services:
+  nats-1:
+    image: nats:latest
+    # Changed -cl to --cluster and simplified the routing syntax
+    command: >
+      --name nats-1
+      --jetstream
+      --store_dir /data
+      --http_port 8222
+      --cluster nats://0.0.0.0:6222
+      --cluster_name NATS_CLUSTER
+      --routes nats://nats-2:6222,nats://nats-3:6222
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    volumes:
+      - C:/temp/nats-data-1:/data
+    networks:
+      - nats-net
+
+  nats-2:
+    image: nats:latest
+    command: >
+      --name nats-2
+      --jetstream
+      --store_dir /data
+      --http_port 8222
+      --cluster nats://0.0.0.0:6222
+      --cluster_name NATS_CLUSTER
+      --routes nats://nats-1:6222,nats://nats-3:6222
+    ports:
+      - "4223:4222"
+      - "8223:8222"
+    volumes:
+      - C:/temp/nats-data-2:/data
+    networks:
+      - nats-net
+
+  nats-3:
+    image: nats:latest
+    command: >
+      --name nats-3
+      --jetstream
+      --store_dir /data
+      --http_port 8222
+      --cluster nats://0.0.0.0:6222
+      --cluster_name NATS_CLUSTER
+      --routes nats://nats-1:6222,nats://nats-2:6222
+    ports:
+      - "4224:4222"
+      - "8224:8222"
+    volumes:
+      - C:/temp/nats-data-3:/data
+    networks:
+      - nats-net
+
+
+  # --- ZINCSEARCH ---
+  zincsearch:
+    image: public.ecr.aws/zinclabs/zincsearch:latest
+    environment:
+      - ZINC_FIRST_ADMIN_USER=admin
+      - ZINC_FIRST_ADMIN_PASSWORD=password
+      - ZINC_LOG_LEVEL=info
+      - ZINC_PROMETHEUS_ENABLE=true
+    ports:
+      - "4080:4080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4080/healthz"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - nats-net
+
+  # --- MICROSERVICES ---
+  subscriber:
+    build: ./subscriber
+    environment:
+      # Pass the full cluster URL to the Go app
+      - NATS_URL=nats://nats-1:4222,nats://nats-2:4222,nats://nats-3:4222
+      - DB_URL=postgres://user:password@app-db:5432/app_data?sslmode=disable
+    depends_on:
+      - nats-1
+      - nats-2
+      - nats-3
+      - zincsearch
+      - app-db
+    networks:
+      - nats-net
+
+  publisher:
+    build: ./publisher
+    environment:
+      - NATS_URL=nats://nats-1:4222,nats://nats-2:4222,nats://nats-3:4222
+    depends_on:
+      - nats-1
+      - nats-2
+      - nats-3
+    networks:
+      - nats-net
+
+  subscriber_prime:
+    build: ./subscriber_prime
+    environment:
+      - NATS_URL=nats://nats-1:4222,nats://nats-2:4222,nats://nats-3:4222
+    depends_on:
+      - nats-1
+      - nats-2
+      - nats-3
+      - zincsearch
+    networks:
+      - nats-net
+
+  # --- NATS Metrics Exporter ---
+  nats-exporter:
+    image: natsio/prometheus-nats-exporter:latest
+    # Try providing the URLs as a space-separated list at the end 
+    # instead of a comma-separated string if the comma is causing "label squashing"
+    command: >
+      -varz -routez -subz -connz
+      http://nats-1:8222 http://nats-2:8222 http://nats-3:8222
+    ports:
+      - "7777:7777"
+    networks:
+      - nats-net
+
+  # --- Prometheus (The Database) ---
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    networks:
+      - nats-net
+
+  # --- Grafana (The Dashboard) ---
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3001:3000" # Mapped to 3001 to avoid conflicts
+    networks:
+      - nats-net
+
+  cobra-nats:
+    image: my-cobra-nats:local  # Points to the image you just built
+    ports:
+      - "8080:3000"
+    environment:
+      # Use the container names from your compose file
+      - NATS_HOSTS=nats-1:4222,nats-2:4222,nats-3:4222
+    networks:
+      - nats-net
+    depends_on:
+      - nats-1
+      - nats-2
+      - nats-3
+  app-db:
+    image: postgres:latest
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=app_data
+    ports:
+      - "5433:5432" # Mapped to 5433 to avoid conflict with console
+    volumes:
+      - C:/temp/postgres-app-data:/var/lib/postgresql
+    networks:
+      - nats-net      
+
+
+# --- NETWORKS & VOLUMES ---
+networks:
+  nats-net:
+    driver: bridge
+
+volumes:
+  nats-data-1:
+  nats-data-2:
+  nats-data-3:

@@ -1,0 +1,51 @@
+services:
+  nats-server:
+    image: nats:latest
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    networks:
+      - nats-net
+
+  zincsearch:
+      image: public.ecr.aws/zinclabs/zincsearch:latest
+      environment:
+        - ZINC_FIRST_ADMIN_USER=admin
+        - ZINC_FIRST_ADMIN_PASSWORD=password
+        - ZINC_LOG_LEVEL=info
+      ports:
+        - "4080:4080"
+      healthcheck:
+        test: ["CMD", "curl", "-f", "http://localhost:4080/healthz"]
+        interval: 5s
+        timeout: 5s
+        retries: 5
+      networks:
+        - nats-net
+
+  subscriber:
+    build: ./subscriber
+    depends_on:
+      - nats-server
+      - zincsearch
+    networks:
+      - nats-net
+
+  publisher:
+    build: ./publisher
+    depends_on:
+      - nats-server
+    networks:
+      - nats-net
+
+  subscriber_prime:
+    build: ./subscriber_prime
+    depends_on:
+      - nats-server
+      - zincsearch
+    networks:
+      - nats-net
+
+networks:
+  nats-net:
+    driver: bridge
