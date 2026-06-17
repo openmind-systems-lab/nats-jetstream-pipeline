@@ -143,19 +143,6 @@ services:
     networks:
       - nats-net
 
-  cobra-nats:
-    image: my-cobra-nats:local  # Points to the image you just built
-    ports:
-      - "8080:3000"
-    environment:
-      # Use the container names from your compose file
-      - NATS_HOSTS=nats-1:4222,nats-2:4222,nats-3:4222
-    networks:
-      - nats-net
-    depends_on:
-      - nats-1
-      - nats-2
-      - nats-3
   app-db:
     image: postgres:latest
     environment:

@@ -63,7 +63,6 @@ If a subscriber starts before the stream is created, it will throw a `Subscripti
 - **Grafana**: `http://localhost:3001` (Credentials: admin/admin)
 - **Prometheus**: `http://localhost:9090`
 - **ZincSearch**: `http://localhost:4080` (Credentials: admin/password)
-- **Cobra NATS (UI)**: `http://localhost:8080`
 
 ## 🛠 Features
 - **Data Integrity**: The publisher implements a blocking retry mechanism that stays on the same message index until confirmed by the cluster.
