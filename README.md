@@ -5,82 +5,9 @@ A high-performance, distributed messaging architecture utilizing a 3-node NATS J
 ## 🏗 Architecture
 
 The system follows a producer-consumer pattern with high-availability and monitoring integrated into the stack.
-
-```mermaid
-%%{init: {
-  'theme': 'base', 
-  'look': 'handDrawn', 
-  'themeVariables': { 
-    'fontFamily': 'Comic Sans MS, cursive',
-    'primaryColor': '#ffffff',
-    'mainBkg': '#ffffff',
-    'lineColor': '#444444'
-  }
-}}%%
-%%{init: {'theme': 'neutral'}}%%
-graph TD
-    subgraph Publisher_Layer [Publisher Layer]
-        PUB[Publisher Go App]
-    end
-
-    subgraph NATS_Cluster [NATS JetStream Cluster]
-        N1[NATS Node 1]
-        N2[NATS Node 2]
-        N3[NATS Node 3]
-        N1 <--> N2
-        N2 <--> N3
-        N3 <--> N1
-    end
-
-    subgraph Subscriber_Layer [Subscriber Layer]
-        SUB[Main Subscriber]
-        SUB_P[Subscriber Prime]
-    end
-
-    subgraph Storage_Layer [Storage Layer]
-        DB[(PostgreSQL DB)]
-        ZINC[[ZincSearch]]
-    end
-
-    subgraph Monitoring_Layer [Monitoring Layer]
-        EXP[NATS Exporter]
-        PROM[Prometheus]
-        GRAF[Grafana]
-    end
-
-    %% Data Flow
-    PUB -- "orders.new (Async)" --> NATS_Cluster
-    NATS_Cluster -- "Batch Pull (1000)" --> SUB
-    NATS_Cluster -- "Pull Subscribe (10)" --> SUB_P
-    
-    SUB -- "SQL Batch Insert" --> DB
-    SUB_P -- "Enrichment + HTTP POST" --> ZINC
-    
-    %% Monitoring Flow
-    NATS_Cluster -. "HTTP Metrics" .-> EXP
-    EXP -. "Scrape" .-> PROM
-    ZINC -. "Scrape" .-> PROM
-    PROM -. "Query" .-> GRAF
-
-    %% Styling
-    style PUB fill:#e6ccb2,stroke:#a68a64,stroke-width:2px,rx:10,ry:10,color:#000
-    style N1 fill:#ffcccc,stroke:#cc0000,stroke-width:2px,rx:10,ry:10,color:#000
-    style N2 fill:#ffcccc,stroke:#cc0000,stroke-width:2px,rx:10,ry:10,color:#000
-    style N3 fill:#ffcccc,stroke:#cc0000,stroke-width:2px,rx:10,ry:10,color:#000
-    style SUB fill:#a2d2ff,stroke:#0056b3,stroke-width:2px,rx:10,ry:10,color:#000
-    style SUB_P fill:#a2d2ff,stroke:#0056b3,stroke-width:2px,rx:10,ry:10,color:#000
-    style DB fill:#d8f3dc,stroke:#2d6a4f,stroke-width:2px,rx:10,ry:10,color:#000
-    style ZINC fill:#ffb703,stroke:#e85d04,stroke-width:2px,rx:10,ry:10,color:#000
-    style EXP fill:#f96,stroke:#a33b00,stroke-width:2px,color:#000
-    style PROM fill:#f96,stroke:#a33b00,stroke-width:3px,color:#000,font-weight:bold
-    style GRAF fill:#d8f3dc,stroke:#2d6a4f,stroke-width:2px,rx:10,ry:10,color:#000
-    
-    style Publisher_Layer fill:#f0f8ff,stroke:#2563eb,stroke-width:2px
-    style NATS_Cluster fill:#fff1f2,stroke:#e11d48,stroke-width:2px
-    style Subscriber_Layer fill:#f0fdf4,stroke:#16a34a,stroke-width:2px
-    style Storage_Layer fill:#fff7ed,stroke:#ea580c,stroke-width:2px
-    style Monitoring_Layer fill:#f5f3ff,stroke:#7c3aed,stroke-width:2px
-```
+<p align="center">
+  <img src="media/schema.png" width="900">
+</p>
 
 ### Components
 - **Publisher**: Asynchronous Go application featuring flow control via `PublishAsyncMaxPending(5000)` and a retry-on-stall loop to ensure 100% delivery of 100,000 messages. **Note: The publisher is responsible for creating the JetStream `ORDERS` stream.**
